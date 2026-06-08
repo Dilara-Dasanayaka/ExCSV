@@ -382,13 +382,9 @@ def display_results(stats):
             missing_pct_str,
             sample_val
         )
-        
     console.print(Align.center(table))
 def select_and_clean_y_variable(filepath, stats):
     """Prompts the user to select the Y variable and handles cleaning/saving to a copy."""
-    if "error" in stats:
-        return
-        
     console.print()
     console.print(Align.center("[bold cyan]Y Variable Selection & Cleaning[/bold cyan]"))
     console.print()
@@ -398,7 +394,6 @@ def select_and_clean_y_variable(filepath, stats):
     for col in stats['columns']:
         choices.append(f"#{col['index']}: {col['name']} ({col['type']}) - {col['missing_count']} missing")
     choices.append("[Cancel]")
-    
     choice = questionary.select(
         "Select the Y variable (dependent variable) using up/down arrows:",
         choices=choices,
@@ -423,7 +418,6 @@ def select_and_clean_y_variable(filepath, stats):
     y_name = selected_col['name']
     col_idx = selected_col['index'] - 1
     missing_cnt = selected_col['missing_count']
-    
     delete_missing = False
     if missing_cnt > 0:
         delete_confirm = questionary.confirm(
@@ -483,7 +477,6 @@ def select_and_clean_y_variable(filepath, stats):
         else:
             message += f"No rows were deleted (retained all data with Y variable '[bold]{y_name}[/bold]').\n"
         message += "Original file remains untouched."
-        
         console.print(Align.center(Panel(
             message,
             title="Export Successful",
@@ -619,7 +612,6 @@ def main():
                 
         stats = analyze_csv(filepath)
         display_results(stats)
-        
         # Y-variable selection, cleaning, and train/test splitting
         select_and_clean_y_variable(filepath, stats)
         
