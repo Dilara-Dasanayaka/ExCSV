@@ -20,6 +20,20 @@ DATE_PATTERNS = [
     re.compile(r'^\d{4}/\d{2}/\d{2}$'),          # YYYY/MM/DD
 ]
 
+def clean_path(path_str):
+    """Cleans paths copied or drag-and-dropped into the terminal."""
+    if not path_str:
+        return ""
+    p = path_str.strip()
+    # PowerShell sometimes prefixes paths with '& '
+    if p.startswith('& '):
+        p = p[2:].strip()
+    # Strip enclosing quotes
+    p = p.strip('"').strip("'")
+    # Replace backslash-escaped spaces
+    p = p.replace('\\ ', ' ')
+    return p
+
 def is_missing(val_str):
     """Checks if a string value counts as a missing/null cell."""
     val_clean = val_str.strip()
@@ -139,7 +153,7 @@ def prompt_file_selection():
         path = questionary.text("Enter the path to the CSV file:").ask()
         if not path:
             return None
-        path = path.strip().strip('"').strip("'")
+        path = clean_path(path)
         if not os.path.isfile(path):
             console.print(f"[bold red]Error:[/bold red] File not found at '{path}'")
             questionary.press_any_key_to_continue().ask()
@@ -366,11 +380,36 @@ def display_results(stats):
 def main():
     while True:
         print_header()
-        filepath = prompt_file_selection()
-        if not filepath:
-            console.print("[yellow]Goodbye![/yellow]")
+        
+        # Display files in current directory to help them see what's available
+        csv_files = get_csv_files()
+        if csv_files:
+            console.print("[dim]CSV files in current directory:[/dim]")
+            for f in csv_files:
+                console.print(f"  [dim]• {f}[/dim]")
+            console.print()
+            
+        console.print("[bold cyan]Drag & Drop a CSV file here, type its path, or press [bold white]Enter[/bold white] to open picker:[/bold cyan]")
+        try:
+            path_input = input("> ").strip()
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[yellow]Goodbye![/yellow]")
             break
             
+        filepath = None
+        if path_input:
+            cleaned = clean_path(path_input)
+            if os.path.isfile(cleaned):
+                filepath = cleaned
+            else:
+                console.print(f"[bold red]Error:[/bold red] File not found at '{cleaned}'")
+                questionary.press_any_key_to_continue().ask()
+                continue
+        else:
+            filepath = prompt_file_selection()
+            if not filepath:
+                break
+                
         stats = analyze_csv(filepath)
         display_results(stats)
         
