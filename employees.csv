@@ -1,0 +1,11 @@
+id,name,department,salary,hire_date,is_active
+101,Alice Smith,Engineering,95000.00,2021-03-15,True
+102,Bob Jones,Sales,62000.50,2022-06-01,True
+103,Charlie Brown,,78000.00,,False
+104,Diana Prince,Engineering,115000.00,2019-11-12,True
+105,Evan Wright,Marketing,,2023-01-15,
+106,Fiona Gallagher,HR,54000.00,2020-08-20,True
+107,George Costanza,Sales,48000.00,2024-02-10,False
+108,Harriet Tubman,,92000.00,2018-05-05,True
+109,Ian Malcolm,Research,125000.00,2015-07-04,
+110,Jane Doe,Marketing,67000.00,,True

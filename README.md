@@ -1,0 +1,72 @@
+# Excelplorer 📊
+
+Excelplorer is a sleek, lightweight, and interactive command-line interface (CLI) tool for exploring and diagnosing CSV files directly inside Windows Command Prompt (CMD) or PowerShell. 
+
+Designed for speed and memory efficiency, it analyzes CSV files of any size without heavy library overhead, providing key metadata, column types, and data quality insights instantly.
+
+---
+
+## Key Features
+
+- **Interactive File Picker:** Automatically lists CSV files in the current folder with their file sizes, allowing selection via arrow keys.
+- **Smart Path Input:** Fallback option to type or paste a custom path manually.
+- **Auto-Detect Architecture:**
+  - Delimiter and quote sniffing (handles comma, tab, semicolon, etc.).
+  - File encoding detection (fallback to `latin-1` if `utf-8` fails).
+- **Column-Level Analysis:**
+  - Auto-infers dominant data types per column (`Integer`, `Float`, `Boolean`, `Date`, `String`).
+  - Identifies missing value variants (e.g. empty strings, `N/A`, `NaN`, `null`, `none`, `-`).
+  - Displays missing counts and percentage color-coding (Green = 0%, Yellow <= 10%, Red > 10%).
+  - Extracts the first non-null sample value for each column.
+- **Premium Aesthetics:** Outputs metadata and metrics in beautifully formatted terminal panels and tables powered by the `rich` library.
+
+---
+
+## Installation
+
+### Prerequisites
+- Python 3.8 or higher installed on your system.
+
+### Dependencies
+Install the required packages using `pip`:
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## How to Run
+
+Simply launch the Python script from your terminal:
+
+```bash
+python explorer.py
+```
+
+### Usage Steps:
+1. **Select a File:** Choose from the list of `.csv` files found in the current folder, or select `[Enter file path manually]` to input a custom absolute/relative file path.
+2. **View Diagnostics:** Review the visual summary panel (rows, columns, encoding, delimiter) and the detailed variable statistics table.
+3. **Loop or Exit:** Confirm if you want to analyze another CSV or exit the application.
+
+---
+
+## Project Structure
+
+```text
+Excelplorer/
+│
+├── explorer.py         # Main interactive CLI application script
+├── requirements.txt    # Project Python dependencies (rich, questionary)
+├── employees.csv       # Test dataset (employee registry with missing cells)
+├── sales.csv           # Test dataset (sales transactions with missing cells)
+└── README.md           # Project documentation
+```
+
+---
+
+## Future Roadmap (Next Stages)
+
+- **Descriptive Statistics:** Calculate mean, median, min, max, and unique counts for numeric columns.
+- **Data Filtering:** Select and filter rows based on column conditions.
+- **Export Reports:** Generate HTML or Markdown reports of the CSV health diagnostics.
