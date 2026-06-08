@@ -2,15 +2,27 @@
 import os
 import re
 import csv
+import random
 from datetime import datetime
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.status import Status
 from rich.text import Text
+from rich import box
+from rich.align import Align
 import questionary
 
 console = Console()
+
+STYLE_CYAN = questionary.Style([
+    ('qmark', 'fg:#00ffff bold'),
+    ('question', 'bold'),
+    ('selected', 'fg:#00ffff bold'),
+    ('pointer', 'fg:#00ffff bold'),
+    ('highlighted', 'fg:#00ffff bold'),
+    ('answer', 'fg:#00ffff bold'),
+])
 
 # Common date formats to check
 DATE_PATTERNS = [
@@ -105,12 +117,14 @@ def get_csv_files():
 def print_header():
     """Prints the application header."""
     console.clear()
-    title = "[bold cyan]EXCELPLORER[/bold cyan] — [dim white]Sleek CSV Diagnostics & Analysis[/dim white]"
-    console.print(Panel(
+    title = "[bold cyan]ExCSV[/bold cyan]\n[dim white]Sleek CSV Diagnostics & Analysis[/dim white]"
+    console.print(Align.center(Panel(
         title,
         border_style="cyan",
-        padding=(0, 2)
-    ))
+        padding=(1, 4),
+        box=box.ROUNDED,
+        expand=False
+    )))
 
 def prompt_file_selection():
     """Prompts the user to select a CSV file interactively."""
@@ -136,14 +150,7 @@ def prompt_file_selection():
     choice = questionary.select(
         "Select a CSV file to explore:",
         choices=choices,
-        style=questionary.Style([
-            ('qmark', 'fg:#00ffff bold'),
-            ('question', 'bold'),
-            ('selected', 'fg:#00ffff bold'),
-            ('pointer', 'fg:#00ffff bold'),
-            ('highlighted', 'fg:#00ffff bold'),
-            ('answer', 'fg:#00ffff bold'),
-        ])
+        style=STYLE_CYAN
     ).ask()
     
     if not choice or choice == "[Exit]":
@@ -315,20 +322,21 @@ def display_results(stats):
     summary_text = (
         f"[bold white]File Location:[/bold white] {stats['filepath']}\n"
         f"[bold white]File Size:[/bold white]     {stats['filesize']}  |  "
-        f"[bold white]Encoding:[/bold white] {stats['encoding']}  |  "
+        f"[bold white]Encoding:[/bold white]  {stats['encoding']}  |  "
         f"[bold white]Delimiter:[/bold white] '{stats['delimiter']}'\n\n"
-        f"[bold green]Rows (nrows):[/bold green]     {stats['nrows']:,}  |  "
-        f"[bold green]Columns (ncols):[/bold green] {stats['ncolumns']:,}\n"
-        f"[bold white]Total Cells:[/bold white]     {stats['total_cells']:,}\n"
-        f"[bold white]Missing Cells:[/bold white]   [{overall_missing_style}]{stats['total_missing']:,} ({stats['overall_missing_pct']:.2f}%)[/{overall_missing_style}]"
+        f"[bold green]Rows (nrows):[/bold green]      {stats['nrows']:,}\n"
+        f"[bold green]Columns (ncols):[/bold green]  {stats['ncolumns']:,}\n"
+        f"[bold white]Total Cells:[/bold white]      {stats['total_cells']:,}\n"
+        f"[bold white]Missing Cells:[/bold white]    [{overall_missing_style}]{stats['total_missing']:,} ({stats['overall_missing_pct']:.2f}%)[/{overall_missing_style}]"
     )
     
-    console.print(Panel(
+    console.print(Align.center(Panel(
         summary_text,
         title=f"[bold green]CSV Summary: {stats['filename']}[/bold green]",
         border_style="green",
+        box=box.ROUNDED,
         expand=False
-    ))
+    )))
     console.print()
     
     # Columns statistics table
@@ -336,7 +344,8 @@ def display_results(stats):
         title="[bold cyan]Column (Variable) Analysis & Details[/bold cyan]",
         show_header=True,
         header_style="bold magenta",
-        border_style="dim blue"
+        border_style="dim blue",
+        box=box.ROUNDED
     )
     
     table.add_column("#", justify="center", style="dim", width=4)
@@ -374,8 +383,206 @@ def display_results(stats):
             sample_val
         )
         
-    console.print(table)
+    console.print(Align.center(table))
+def select_and_clean_y_variable(filepath, stats):
+    """Prompts the user to select the Y variable and handles cleaning/saving to a copy."""
+    if "error" in stats:
+        return
+        
     console.print()
+    console.print(Align.center("[bold cyan]Y Variable Selection & Cleaning[/bold cyan]"))
+    console.print()
+    
+    # 1. Build selection choices from columns
+    choices = []
+    for col in stats['columns']:
+        choices.append(f"#{col['index']}: {col['name']} ({col['type']}) - {col['missing_count']} missing")
+    choices.append("[Cancel]")
+    
+    choice = questionary.select(
+        "Select the Y variable (dependent variable) using up/down arrows:",
+        choices=choices,
+        style=STYLE_CYAN
+    ).ask()
+    
+    if not choice or choice == "[Cancel]":
+        console.print("[yellow]Y variable selection cancelled.[/yellow]")
+        return
+        
+    # Find matching column stats
+    selected_col = None
+    for col in stats['columns']:
+        if choice.startswith(f"#{col['index']}: "):
+            selected_col = col
+            break
+            
+    if not selected_col:
+        console.print("[red]Invalid selection.[/red]")
+        return
+        
+    y_name = selected_col['name']
+    col_idx = selected_col['index'] - 1
+    missing_cnt = selected_col['missing_count']
+    
+    delete_missing = False
+    if missing_cnt > 0:
+        delete_confirm = questionary.confirm(
+            f"Y variable '{y_name}' has {missing_cnt} missing values. Is it okay to delete these rows?",
+            style=STYLE_CYAN
+        ).ask()
+        if delete_confirm:
+            delete_missing = True
+        else:
+            console.print("[yellow]Retaining rows with missing Y values.[/yellow]")
+    else:
+        console.print(f"[green]Y variable '{y_name}' has no missing values.[/green]")
+        
+    # 2. Save copy of the CSV to exact same location with {name}_ExCSV.csv
+    dir_name = os.path.dirname(filepath)
+    base_name = os.path.basename(filepath)
+    name_part, ext = os.path.splitext(base_name)
+    new_filename = f"{name_part}_ExCSV.csv"
+    new_filepath = os.path.join(dir_name, new_filename) if dir_name else new_filename
+    
+    encoding = stats['encoding']
+    delimiter = stats['delimiter']
+    
+    rows_to_write = []
+    header_row = None
+    deleted_count = 0
+    
+    try:
+        with open(filepath, 'r', encoding=encoding, newline='') as f:
+            reader = csv.reader(f, delimiter=delimiter)
+            header_row = next(reader)
+            
+            for row in reader:
+                # Skip completely empty rows
+                if not row or all(not cell.strip() for cell in row):
+                    continue
+                    
+                val = row[col_idx] if col_idx < len(row) else ""
+                if delete_missing and is_missing(val):
+                    deleted_count += 1
+                    continue
+                    
+                rows_to_write.append(row)
+    except Exception as e:
+        console.print(f"[bold red]Error reading original file for copying:[/bold red] {e}")
+        return
+        
+    try:
+        with open(new_filepath, 'w', encoding=encoding, newline='') as f:
+            writer = csv.writer(f, delimiter=delimiter)
+            writer.writerow(header_row)
+            writer.writerows(rows_to_write)
+            
+        message = f"Saved a copy of the CSV to:\n[cyan]{new_filepath}[/cyan]\n\n"
+        if delete_missing:
+            message += f"Deleted {deleted_count} rows with missing values in Y variable '[bold]{y_name}[/bold]'.\n"
+        else:
+            message += f"No rows were deleted (retained all data with Y variable '[bold]{y_name}[/bold]').\n"
+        message += "Original file remains untouched."
+        
+        console.print(Align.center(Panel(
+            message,
+            title="Export Successful",
+            border_style="green",
+            box=box.ROUNDED,
+            expand=False
+        )))
+        
+        # 3. Train/Test split option
+        console.print()
+        split_confirm = questionary.confirm(
+            "Would you like to split the cleaned dataset into Train and Test sets?",
+            style=STYLE_CYAN
+        ).ask()
+        
+        if split_confirm:
+            # Proportion selection (5 intervals)
+            prop_choices = [
+                "10-90 (10% Test / 90% Train)",
+                "15-85 (15% Test / 85% Train)",
+                "20-80 (20% Test / 80% Train)",
+                "25-75 (25% Test / 75% Train)",
+                "30-70 (30% Test / 70% Train)"
+            ]
+            prop_choice = questionary.select(
+                "Select split proportion (left side is test %, right is train %):",
+                choices=prop_choices,
+                style=STYLE_CYAN
+            ).ask()
+            
+            if prop_choice:
+                # Parse test size
+                test_pct = int(prop_choice.split('-')[0])
+                test_fraction = test_pct / 100.0
+                
+                # Seed prompt
+                seed_input = questionary.text(
+                    "Enter random seed (integer):",
+                    default="42",
+                    style=STYLE_CYAN
+                ).ask()
+                
+                try:
+                    seed_val = int(seed_input)
+                except ValueError:
+                    console.print("[yellow]Invalid seed. Defaulting to 42.[/yellow]")
+                    seed_val = 42
+                
+                # Split rows
+                num_rows = len(rows_to_write)
+                num_test = int(round(num_rows * test_fraction))
+                if num_rows >= 2:
+                    num_test = max(1, min(num_test, num_rows - 1))
+                else:
+                    num_test = 0
+                
+                indices = list(range(num_rows))
+                rng = random.Random(seed_val)
+                rng.shuffle(indices)
+                
+                test_indices = set(indices[:num_test])
+                
+                # Filter rows keeping original order in split
+                test_rows = [rows_to_write[i] for i in range(num_rows) if i in test_indices]
+                train_rows = [rows_to_write[i] for i in range(num_rows) if i not in test_indices]
+                
+                test_filename = f"{name_part}_Test_ExCSV.csv"
+                train_filename = f"{name_part}_Train_ExCSV.csv"
+                test_filepath = os.path.join(dir_name, test_filename) if dir_name else test_filename
+                train_filepath = os.path.join(dir_name, train_filename) if dir_name else train_filename
+                
+                try:
+                    with open(test_filepath, 'w', encoding=encoding, newline='') as f:
+                        writer = csv.writer(f, delimiter=delimiter)
+                        writer.writerow(header_row)
+                        writer.writerows(test_rows)
+                        
+                    with open(train_filepath, 'w', encoding=encoding, newline='') as f:
+                        writer = csv.writer(f, delimiter=delimiter)
+                        writer.writerow(header_row)
+                        writer.writerows(train_rows)
+                        
+                    split_msg = (
+                        f"[bold green]Split Successful![/bold green]\n\n"
+                        f"[bold white]Parameters:[/bold white] Seed: {seed_val}  |  {test_pct}% Test / {100-test_pct}% Train\n\n"
+                        f"  • [bold green]Train Set[/bold green] ({len(train_rows)} rows): [cyan]{train_filepath}[/cyan]\n"
+                        f"  • [bold blue]Test Set[/bold blue]  ({len(test_rows)} rows): [cyan]{test_filepath}[/cyan]"
+                    )
+                    console.print(Align.center(Panel(
+                        split_msg,
+                        title="Split Export Complete",
+                        border_style="green",
+                        box=box.ROUNDED,
+                        expand=False
+                    )))
+                except Exception as e:
+                    console.print(f"[bold red]Error writing split files:[/bold red] {e}")
+    except Exception as e:
+        console.print(f"[bold red]Error writing to new file:[/bold red] {e}")
 
 def main():
     while True:
@@ -413,8 +620,11 @@ def main():
         stats = analyze_csv(filepath)
         display_results(stats)
         
+        # Y-variable selection, cleaning, and train/test splitting
+        select_and_clean_y_variable(filepath, stats)
+        
         # Offer option to restart or quit
-        again = questionary.confirm("Would you like to explore another CSV file?").ask()
+        again = questionary.confirm("Would you like to explore another CSV file?", style=STYLE_CYAN).ask()
         if not again:
             console.print("[yellow]Goodbye![/yellow]")
             break
