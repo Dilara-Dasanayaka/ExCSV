@@ -18,6 +18,7 @@ Designed for speed and memory efficiency, it analyzes CSV files of any size with
   - Identifies missing value variants (e.g. empty strings, `N/A`, `NaN`, `null`, `none`, `-`).
   - Displays missing counts and percentage color-coding (Green = 0%, Yellow <= 10%, Red > 10%).
   - Extracts the first non-null sample value for each column.
+- **Y-Variable Cleaning & Row Deletion:** Prompts selection of a Y variable (dependent variable) via arrow keys. If missing values are present, it asks to delete those rows and exports the result as a copy (`{name}_ExCSV.csv`) in the same location, keeping the original file completely safe.
 - **Premium Aesthetics:** Outputs metadata and metrics in beautifully formatted terminal panels and tables powered by the `rich` library.
 
 ---
@@ -47,7 +48,9 @@ python explorer.py
 ### Usage Steps:
 1. **Select a File:** Choose from the list of `.csv` files found in the current folder, or select `[Enter file path manually]` to input a custom absolute/relative file path.
 2. **View Diagnostics:** Review the visual summary panel (rows, columns, encoding, delimiter) and the detailed variable statistics table.
-3. **Loop or Exit:** Confirm if you want to analyze another CSV or exit the application.
+3. **Select & Clean Y-Variable:** Choose a Y-variable using arrow keys. If it has missing rows, select whether to delete those rows to make the dataset suitable for analysis.
+4. **Auto-Export:** The cleaned dataset is exported as a copy in the exact same location with `{name}_ExCSV.csv` appended to the filename.
+5. **Loop or Exit:** Confirm if you want to analyze another CSV or exit the application.
 
 ---
 
