@@ -375,7 +375,118 @@ def display_results(stats):
         )
         
     console.print(table)
-    console.print()
+def select_and_clean_y_variable(filepath, stats):
+    """Prompts the user to select the Y variable and handles cleaning/saving to a copy."""
+    if "error" in stats:
+        return
+        
+    console.print("[bold cyan]Y Variable Selection & Cleaning[/bold cyan]")
+    
+    # 1. Build selection choices from columns
+    choices = []
+    for col in stats['columns']:
+        choices.append(f"#{col['index']}: {col['name']} ({col['type']}) - {col['missing_count']} missing")
+    choices.append("[Cancel]")
+    
+    choice = questionary.select(
+        "Select the Y variable (dependent variable) using up/down arrows:",
+        choices=choices,
+        style=questionary.Style([
+            ('qmark', 'fg:#00ffff bold'),
+            ('question', 'bold'),
+            ('selected', 'fg:#00ffff bold'),
+            ('pointer', 'fg:#00ffff bold'),
+            ('highlighted', 'fg:#00ffff bold'),
+            ('answer', 'fg:#00ffff bold'),
+        ])
+    ).ask()
+    
+    if not choice or choice == "[Cancel]":
+        console.print("[yellow]Y variable selection cancelled.[/yellow]")
+        return
+        
+    # Find matching column stats
+    selected_col = None
+    for col in stats['columns']:
+        if choice.startswith(f"#{col['index']}: "):
+            selected_col = col
+            break
+            
+    if not selected_col:
+        console.print("[red]Invalid selection.[/red]")
+        return
+        
+    y_name = selected_col['name']
+    col_idx = selected_col['index'] - 1
+    missing_cnt = selected_col['missing_count']
+    
+    delete_missing = False
+    if missing_cnt > 0:
+        delete_confirm = questionary.confirm(
+            f"Y variable '{y_name}' has {missing_cnt} missing values. Is it okay to delete these rows?"
+        ).ask()
+        if delete_confirm:
+            delete_missing = True
+        else:
+            console.print("[yellow]Retaining rows with missing Y values.[/yellow]")
+    else:
+        console.print(f"[green]Y variable '{y_name}' has no missing values.[/green]")
+        
+    # 2. Save copy of the CSV to exact same location with {name}_ExCSV.csv
+    dir_name = os.path.dirname(filepath)
+    base_name = os.path.basename(filepath)
+    name_part, ext = os.path.splitext(base_name)
+    new_filename = f"{name_part}_ExCSV.csv"
+    new_filepath = os.path.join(dir_name, new_filename) if dir_name else new_filename
+    
+    encoding = stats['encoding']
+    delimiter = stats['delimiter']
+    
+    rows_to_write = []
+    header_row = None
+    deleted_count = 0
+    
+    try:
+        with open(filepath, 'r', encoding=encoding, newline='') as f:
+            reader = csv.reader(f, delimiter=delimiter)
+            header_row = next(reader)
+            
+            for row in reader:
+                # Skip completely empty rows
+                if not row or all(not cell.strip() for cell in row):
+                    continue
+                    
+                val = row[col_idx] if col_idx < len(row) else ""
+                if delete_missing and is_missing(val):
+                    deleted_count += 1
+                    continue
+                    
+                rows_to_write.append(row)
+    except Exception as e:
+        console.print(f"[bold red]Error reading original file for copying:[/bold red] {e}")
+        return
+        
+    try:
+        with open(new_filepath, 'w', encoding=encoding, newline='') as f:
+            writer = csv.writer(f, delimiter=delimiter)
+            writer.writerow(header_row)
+            writer.writerows(rows_to_write)
+            
+        message = f"Saved a copy of the CSV to:\n[cyan]{new_filepath}[/cyan]\n\n"
+        if delete_missing:
+            message += f"Deleted {deleted_count} rows with missing values in Y variable '[bold]{y_name}[/bold]'.\n"
+        else:
+            message += f"No rows were deleted (retained all data with Y variable '[bold]{y_name}[/bold]').\n"
+        message += "Original file remains untouched."
+        
+        console.print(Panel(
+            message,
+            title="Export Successful",
+            border_style="green",
+            expand=False
+        ))
+    except Exception as e:
+        console.print(f"[bold red]Error writing to new file:[/bold red] {e}")
 
 def main():
     while True:
@@ -412,6 +523,9 @@ def main():
                 
         stats = analyze_csv(filepath)
         display_results(stats)
+        
+        # Y-variable selection and cleaning/copying
+        select_and_clean_y_variable(filepath, stats)
         
         # Offer option to restart or quit
         again = questionary.confirm("Would you like to explore another CSV file?").ask()
